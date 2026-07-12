@@ -68,64 +68,21 @@ local function showConfigUI(player)
 end
 
 local function executeUpdateAll(player, config)
-    player:onConsoleMessage("`oFetching file list from Github API...``")
-    local repo = config.repo
-    local branch = config.branch
-
-    local apiUrl = "https://api.github.com/repos/" .. repo .. "/git/trees/" .. branch .. "?recursive=1"
+    player:onConsoleMessage("`oAttempting to pull latest files from GitHub...``")
     
-    local res = http.get(apiUrl)
-    if not res then
-        player:onConsoleMessage("`4Failed to reach Github API. Check repo name and internet connection.``")
-        return
-    end
-
-    local body = type(res) == "table" and res.body or res
-    if not body or body == "" then
-        player:onConsoleMessage("`4Received empty response from Github API.``")
-        return
-    end
-
-    local data = json.decode(body)
-    if not data or type(data) ~= "table" or not data.tree then
-        player:onConsoleMessage("`4Failed to parse Github API response. Make sure the Repo and Branch are correct.``")
-        if data and data.message then
-            player:onConsoleMessage("`4API Message: `o" .. data.message .. "``")
+    if type(os) == "table" and type(os.execute) == "function" then
+        -- Execute git pull
+        local exitCode = os.execute("git pull origin main")
+        if exitCode == 0 or exitCode == true then
+            player:onConsoleMessage("`2Successfully pulled the latest files from GitHub!``")
+            player:onConsoleMessage("`oReloading scripts to apply changes...``")
+            reloadScripts()
+        else
+            player:onConsoleMessage("`4Failed to git pull. Check console logs. Exit code: `o" .. tostring(exitCode) .. "``")
         end
-        return
+    else
+        player:onConsoleMessage("`4Error: os.execute is disabled in this Lua environment. Cannot perform git pull.``")
     end
-
-    local count = 0
-    player:onConsoleMessage("`oDownloading files...``")
-
-    for _, item in ipairs(data.tree) do
-        if item.type == "blob" then
-            -- Only download specific text-based files to avoid breaking the server with binaries
-            if item.path:match("%.lua$") or item.path:match("%.json$") or item.path:match("%.txt$") or item.path:match("%.md$") then
-                
-                local rawUrl = "https://raw.githubusercontent.com/" .. repo .. "/" .. branch .. "/" .. item.path
-                local dlRes = http.get(rawUrl)
-                
-                if dlRes then
-                    local dlBody = type(dlRes) == "table" and dlRes.body or dlRes
-                    if dlBody and type(dlBody) == "string" and #dlBody > 0 then
-                        -- Check if there's a directory path that needs to be created
-                        local dirPath = item.path:match("(.+)/[^/]+$")
-                        if dirPath then
-                            dir.create(dirPath)
-                        end
-                        
-                        file.write(item.path, dlBody)
-                        count = count + 1
-                    end
-                end
-            end
-        end
-    end
-
-    player:onConsoleMessage("`2Successfully updated `w" .. count .. "`2 files from Github!``")
-    player:onConsoleMessage("`oReloading scripts to apply changes...``")
-    reloadScripts()
 end
 
 onPlayerCommandCallback(function(world, player, fullCommand)
@@ -154,10 +111,7 @@ onPlayerCommandCallback(function(world, player, fullCommand)
             return true
         end
 
-        -- Execute the update in a coroutine to allow http.get to yield without crashing
-        coroutine.wrap(function()
-            executeUpdateAll(player, config)
-        end)()
+        executeUpdateAll(player, config)
 
         return true
     end
