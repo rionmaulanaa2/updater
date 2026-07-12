@@ -67,22 +67,60 @@ local function showConfigUI(player)
     )
 end
 
-local function executeUpdateAll(player, config)
-    player:onConsoleMessage("`oAttempting to pull latest files from GitHub...``")
-    
-    if type(os) == "table" and type(os.execute) == "function" then
-        -- Execute git pull
-        local exitCode = os.execute("git pull origin main")
-        if exitCode == 0 or exitCode == true then
-            player:onConsoleMessage("`2Successfully pulled the latest files from GitHub!``")
-            player:onConsoleMessage("`oReloading scripts to apply changes...``")
-            reloadScripts()
-        else
-            player:onConsoleMessage("`4Failed to git pull. Check console logs. Exit code: `o" .. tostring(exitCode) .. "``")
+local function handleFileDownload(repo, branch, item, player)
+    local rawUrl = "https://raw.githubusercontent.com/" .. repo .. "/" .. branch .. "/" .. item.path
+    -- We pass a callback as the second argument
+    http.get(rawUrl, function(dlRes)
+        if dlRes then
+            local dlBody = type(dlRes) == "table" and dlRes.body or dlRes
+            if dlBody and type(dlBody) == "string" and #dlBody > 0 then
+                local dirPath = item.path:match("(.+)/[^/]+$")
+                if dirPath then
+                    dir.create(dirPath)
+                end
+                file.write(item.path, dlBody)
+            end
         end
-    else
-        player:onConsoleMessage("`4Error: os.execute is disabled in this Lua environment. Cannot perform git pull.``")
-    end
+    end)
+end
+
+local function executeUpdateAll(player, config)
+    player:onConsoleMessage("`oAttempting to fetch latest files from GitHub API...``")
+    local repo = config.repo
+    local branch = config.branch
+
+    local apiUrl = "https://api.github.com/repos/" .. repo .. "/git/trees/" .. branch .. "?recursive=1"
+    
+    -- Attempting to use a callback approach in case http.get supports it to bypass yielding
+    http.get(apiUrl, function(res)
+        if not res then
+            player:onConsoleMessage("`4Failed to reach Github API. Check repo name and internet connection.``")
+            return
+        end
+
+        local body = type(res) == "table" and res.body or res
+        if type(body) == "string" and not body:match("^%s*{") then
+            player:onConsoleMessage("`4Error: API did not return JSON. It might be blocking the request.``")
+            return
+        end
+
+        local data = json.decode(body)
+        if data and type(data) == "table" and data.tree then
+            local count = 0
+            for _, item in ipairs(data.tree) do
+                if item.type == "blob" then
+                    if item.path:match("%.lua$") or item.path:match("%.json$") or item.path:match("%.txt$") or item.path:match("%.md$") then
+                        handleFileDownload(repo, branch, item, player)
+                        count = count + 1
+                    end
+                end
+            end
+            player:onConsoleMessage("`2Successfully queued `w" .. count .. "`2 files for download!``")
+            player:onConsoleMessage("`oDownloads happen in the background. Please wait 3-5 seconds and then run /reload.``")
+        else
+            player:onConsoleMessage("`4Failed to parse Github API response.``")
+        end
+    end)
 end
 
 onPlayerCommandCallback(function(world, player, fullCommand)
