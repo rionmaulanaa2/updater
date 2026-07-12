@@ -132,11 +132,15 @@ onPlayerCommandCallback(function(world, player, fullCommand)
     local cmd, args = fullCommand:match("^(%S+)%s*(.*)")
     if not cmd then cmd = fullCommand end
     cmd = cmd:lower()
+    -- Strip leading slash if present
+    if cmd:sub(1, 1) == "/" then cmd = cmd:sub(2) end
     
     if cmd == "ul" or cmd == "updatelua" then
         if not player:hasRole(ROLE_DEVELOPER) then
             return false
         end
+        
+        args = args or ""
 
         if args:lower() == "config" then
             showConfigUI(player)
@@ -150,14 +154,10 @@ onPlayerCommandCallback(function(world, player, fullCommand)
             return true
         end
 
-        -- Execute the update
-        -- Wrap in a timer if possible to avoid blocking the main thread, 
-        -- but if timer.setTimeout isn't guaranteed, just run it directly.
-        if type(timer) == "table" and type(timer.setTimeout) == "function" then
-            timer.setTimeout(100, function() executeUpdateAll(player, config) end)
-        else
+        -- Execute the update in a coroutine to allow http.get to yield without crashing
+        coroutine.wrap(function()
             executeUpdateAll(player, config)
-        end
+        end)()
 
         return true
     end
