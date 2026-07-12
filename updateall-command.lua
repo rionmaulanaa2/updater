@@ -99,7 +99,7 @@ onPlayerCommandCallback(function(world, player, fullCommand)
         -- The daemon then runs 'git pull' outside the Lua engine.
         player:onConsoleMessage("`6>> `oSending update signal to Updater Daemon...``")
 
-        http.post(DAEMON_URL, "repo=" .. config.repo .. "&branch=" .. config.branch)
+        http.post(DAEMON_URL, "repo=" .. config.repo .. "&branch=" .. config.branch, "")
 
         player:onConsoleMessage("`2Signal sent! The Daemon is now running git pull.``")
         player:onConsoleMessage("`oWait 3-5 seconds for git pull to finish, then type `w/reload`` `oto apply the new files!``")
