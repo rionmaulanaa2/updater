@@ -213,7 +213,10 @@ onPlayerDialogCallback(function(world, player, data)
                 return true
             end
             
-            player:removeGems(total_cost)
+            -- Use setGems to subtract cost safely (avoids removeGems signature issues)
+            local new_gems = current_gems - total_cost
+            player:setGems(new_gems, false)
+            
             local uid = tostring(player:getUserID())
             local wallet = getWallet(uid)
             wallet[lockId] = (wallet[lockId] or 0) + amount

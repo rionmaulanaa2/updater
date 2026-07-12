@@ -25,68 +25,97 @@ end
 -- Icons use well-known Growtopia item IDs confirmed from across the codebase.
 
 local CATEGORIES = {
+    -- ══════════════════════════════════
+    --  DEVELOPER (role 51)
+    -- ══════════════════════════════════
     {
         key   = "dev",
         label = "Developer",
         color = "`6",
         icon  = 5814,
         commands = {
-            { cmd = "/setcap", usage = "/setcap", icon = 5814, desc = "Modify global machine capacity. Usage: /setcap <itemID> <value>" },
-            { cmd = "/fishmaker", usage = "/fishmaker", icon = 5814, desc = "Open the Developer Custom Fish Generator UI" },
-            { cmd = "/f", usage = "/f", icon = 5814, desc = "Developer: Open the item search and spawn panel. /f [name]" },
-            { cmd = "/fishexch", usage = "/fishexch", icon = 5814, desc = "Edit virtual fish exchange payouts (e.g. WLs instead of Gems)!" },
-            { cmd = "/fishboost", usage = "/fishboost", icon = 5814, desc = "Open UI to toggle the server-wide Fish Boost" },
-            { cmd = "/fishwebhook", usage = "/fishwebhook", icon = 5814, desc = "Open UI to configure Fish Boost Discord Webhook" },
-            { cmd = "/editfishconfig", usage = "/editfishconfig", icon = 5814, desc = "Edit the fishing.json wait_time for rods!" },
-            { cmd = "/fishconfig", usage = "/fishconfig", icon = 5814, desc = "View and understand the server fishing drop table." },
-            { cmd = "/fishloot", usage = "/fishloot", icon = 5814, desc = "Developer: Manage Custom Fish Drop Tables dynamically!" },
-            { cmd = "/fullscan", usage = "/fullscan", icon = 5814, desc = "Scans economy fully of the Server." },
-            { cmd = "/givegems", usage = "/givegems", icon = 5814, desc = "This command allows you to give gems to use this command." },
-            { cmd = "/?", usage = "/?", icon = 5814, desc = "Developer Help Panel: shows all registered server commands." },
-            { cmd = "/h", usage = "/h", icon = 5814, desc = "Developer Help Panel: shows all registered server commands." },
-            { cmd = "/dh", usage = "/dh", icon = 5814, desc = "Developer Help Panel: shows all registered server commands." },
-            { cmd = "/manageexchange", usage = "/manageexchange", icon = 5814, desc = "Developer: Manage item exchange configurations." },
-            { cmd = "/manageshop", usage = "/manageshop", icon = 5814, desc = "Developer: Manage the Gem Shop listings." },
-            { cmd = "/editreferral", usage = "/editreferral", icon = 5814, desc = "Developer: Edit the Referral Milestones" },
-            { cmd = "/rs", usage = "/rs", icon = 5814, desc = "This command allows you to use this command." },
-            { cmd = "/reloadscripts", usage = "/reloadscripts", icon = 5814, desc = "This command allows you to use this command." },
-            { cmd = "/say", usage = "/say", icon = 5814, desc = "This command allows you to make everyone" },
-            { cmd = "/setslots", usage = "/setslots", icon = 5814, desc = "This command allows you to set" },
-            { cmd = "/update", usage = "/update", icon = 5814, desc = "This command allows you to use this command." },
+            -- Fish System
+            { cmd = "/fishexch",         usage = "/fishexch",                   desc = "Edit virtual fish exchange payouts (e.g. WLs instead of Gems)." },
+            { cmd = "/fishmaker",        usage = "/fishmaker",                  desc = "Open the Developer Custom Fish Generator UI to create custom fish." },
+            { cmd = "/fishconfig",       usage = "/fishconfig",                 desc = "View and understand the server fishing drop table." },
+            { cmd = "/editfishconfig",   usage = "/editfishconfig",             desc = "Edit the fishing.json wait_time per rod type." },
+            { cmd = "/fishloot",         usage = "/fishloot",                   desc = "Manage Custom Fish Drop Tables dynamically (add or remove drops)." },
+            { cmd = "/fishboost",        usage = "/fishboost",                  desc = "Toggle the server-wide Fish Boost event (doubles fish sell rewards)." },
+            { cmd = "/fishwebhook",      usage = "/fishwebhook",                desc = "Configure the Discord Webhook URL for Fish Boost event notifications." },
+            -- Economy and Shop
+            { cmd = "/fullscan",         usage = "/fullscan",                   desc = "Scan the entire server economy (locks, gems, items)." },
+            { cmd = "/manageexchange",   usage = "/manageexchange",             desc = "Manage item exchange configurations (add, edit, remove trade listings)." },
+            { cmd = "/manageshop",       usage = "/manageshop",                 desc = "Manage the Gem Shop listings in the Portal Menu." },
+            { cmd = "/setcap",           usage = "/setcap <itemID> <value>",    desc = "Modify the global machine capacity limit for a specific item ID." },
+            { cmd = "/givegems",         usage = "/givegems <player> <amount>", desc = "Give gems to a specific player." },
+            { cmd = "/setslots",         usage = "/setslots <player> <slots>",  desc = "Set a player\'s autofarm slot limit." },
+            -- Expired Locks and Anti-Dupe
+            { cmd = "/expiredlocks",     usage = "/expiredlocks",               desc = "Open the Expired Locks System UI (enable/disable, set thresholds)." },
+            { cmd = "/lockaudit",        usage = "/lockaudit",                  desc = "Manually audit your own inventory lock balance against the server pool." },
+            { cmd = "/locktrack",        usage = "/locktrack",                  desc = "Open the Lock Tracker and Anti-Dupe management UI." },
+            -- Referral
+            { cmd = "/editreferral",     usage = "/editreferral",               desc = "Edit Referral Program milestone rewards (items, gems, invite counts)." },
+            -- Items and World
+            { cmd = "/f",                usage = "/f [name]",                   desc = "Open the item search and spawn panel to find and give items in-game." },
+            -- Chat Channels
+            { cmd = "/devchat",          usage = "/devchat <message>",          desc = "Send a message in the private Developer Chat channel." },
+            -- Scripts and Maintenance
+            { cmd = "/ul",               usage = "/ul [config]",                desc = "Fetch and update all scripts from the configured GitHub repository." },
+            { cmd = "/updatelua",        usage = "/updatelua [config]",         desc = "Alias for /ul. Fetch and update all scripts from GitHub." },
+            { cmd = "/rs",               usage = "/rs",                         desc = "Reload all server scripts instantly." },
+            { cmd = "/reloadscripts",    usage = "/reloadscripts",              desc = "Alias for /rs. Reload all server scripts." },
+            { cmd = "/say",              usage = "/say <message>",              desc = "Broadcast a message to everyone visible in the world." },
+            -- Moderation
+            { cmd = "/clearmalpractice", usage = "/clearmalpractice [player]", desc = "Remove the Malpractice status from yourself or a target player." },
+            { cmd = "/curemalpractice",  usage = "/curemalpractice [player]",  desc = "Alias for /clearmalpractice." },
+            { cmd = "/rmmalpractice",    usage = "/rmmalpractice [player]",    desc = "Alias for /clearmalpractice." },
+            -- Help Panel
+            { cmd = "/?",                usage = "/?",                          desc = "Open this Developer Help Panel." },
+            { cmd = "/h",                usage = "/h",                          desc = "Alias for /?. Open the Developer Help Panel." },
+            { cmd = "/dh",               usage = "/dh",                        desc = "Alias for /?. Open the Developer Help Panel." },
         }
     },
+    -- ══════════════════════════════════
+    --  STAFF / VIP (role 1-3)
+    -- ══════════════════════════════════
     {
         key   = "staff",
-        label = "Staff",
+        label = "Staff / VIP",
         color = "`c",
         icon  = 482,
         commands = {
-            { cmd = "/getdaily", usage = "/getdaily", icon = 482, desc = "This command gives you" },
-            { cmd = "/farmer", usage = "/farmer", icon = 482, desc = "Spawn a Farmer NPC" },
-            { cmd = "/demotemyself", usage = "/demotemyself", icon = 482, desc = "This command allows you to use this command." },
+            { cmd = "/getdaily",     usage = "/getdaily",         desc = "Claim your daily reward (random item drop). Available once per day." },
+            { cmd = "/farmer",       usage = "/farmer",           desc = "Spawn a Farmer NPC in the current world." },
+            { cmd = "/demotemyself", usage = "/demotemyself",     desc = "Demote yourself from your current VIP or Staff role." },
+            { cmd = "/vipchat",      usage = "/vipchat <message>",desc = "Send a message in the private VIP Chat channel." },
         }
     },
+    -- ══════════════════════════════════
+    --  ALL PLAYERS (role 0)
+    -- ══════════════════════════════════
     {
         key   = "all",
         label = "All Players",
         color = "`2",
         icon  = 1366,
         commands = {
-            { cmd = "/buy", usage = "/buy", icon = 982, desc = "This command allows you to buy items." },
-            { cmd = "/coinflip", usage = "/coinflip", icon = 982, desc = "Play the Coin Flip minigame! Bet WL/DL/BGL and double your balance!" },
-            { cmd = "/cf", usage = "/cf", icon = 982, desc = "Shortcut for /coinflip" },
-            { cmd = "/fishinv", usage = "/fishinv", icon = 982, desc = "Open your personal fishing album to see your custom catches!" },
-            { cmd = "/sellfish", usage = "/sellfish", icon = 982, desc = "Sell all your physical Growtopia fish from your inventory for World Locks!" },
-            { cmd = "/enchant", usage = "/enchant", icon = 982, desc = "Enchant your fishing rod with custom drops!" },
-            { cmd = "/exchange", usage = "/exchange", icon = 982, desc = "Open the Item Exchange Center and browse available trades." },
-            { cmd = "/online", usage = "/online", icon = 982, desc = "This command lists all online players, their location, role, and status." },
-            { cmd = "/menu", usage = "/menu", icon = 982, desc = "Open the Portal Menu (Tutorial / Cheats / Buy)." },
-            { cmd = "/buyvip", usage = "/buyvip", icon = 982, desc = "This command allows you to buy items." },
+            { cmd = "/buy",      usage = "/buy [search]", desc = "Browse and purchase items and blocks from the server shop for gems." },
+            { cmd = "/buyvip",   usage = "/buyvip",       desc = "Purchase the VIP role for 100 Diamond Locks." },
+            { cmd = "/menu",     usage = "/menu",         desc = "Open the Portal Menu (Tutorial, Cheats, Buy)." },
+            { cmd = "/online",   usage = "/online",       desc = "List all online players, their world, role, and current status." },
+            { cmd = "/exchange", usage = "/exchange",     desc = "Open the Item Exchange Center and browse available item trades." },
+            { cmd = "/coinflip", usage = "/coinflip",     desc = "Play the Coin Flip minigame. Bet WL/DL/BGL and try to double your balance." },
+            { cmd = "/cf",       usage = "/cf",           desc = "Alias for /coinflip. Quick shortcut to the Coin Flip minigame." },
+            { cmd = "/fishinv",  usage = "/fishinv",      desc = "Open your personal fishing album to view all your custom fish catches." },
+            { cmd = "/sellfish", usage = "/sellfish",     desc = "Sell physical Growtopia fish from your inventory for World Locks." },
+            { cmd = "/enchant",  usage = "/enchant",      desc = "Enchant your fishing rod with custom item drops and buffs." },
+            { cmd = "/wallet",   usage = "/wallet",       desc = "Open your Virtual Wallet. Exchange gems for locks, transfer, or withdraw." },
+            { cmd = "/referral", usage = "/referral",     desc = "Open the Referral Program. Share your invite code and earn milestone rewards." },
+            { cmd = "/stock",    usage = "/stock",        desc = "Open the Stock Market menu to buy, sell, and trade stocks." },
+            { cmd = "/market",   usage = "/market",       desc = "Alias for /stock. Open the Stock Market menu." },
+            { cmd = "/news",     usage = "/news",         desc = "View the latest server news and announcements." },
         }
     }
-}
-
-
 }
 
 -- ─── Style helpers ────────────────────────────────────────────────────────────
