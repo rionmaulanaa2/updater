@@ -1,0 +1,1 @@
+local f = io.open("gtps_docs_reference.md", "r"); local content = f:read("*a"); f:close(); for name in string.gmatch(content, "\"name\":\"([^\"]+)\"") do if string.match(string.lower(name), "tile") or string.match(string.lower(name), "set") or string.match(string.lower(name), "npc") then print(name) end end
