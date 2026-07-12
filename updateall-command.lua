@@ -1,20 +1,23 @@
 -- Update All Command script
+-- Triggers a local updater daemon (updater-daemon.ps1) via http.post.
+-- http.post is fire-and-forget and does NOT yield, so it never crashes.
 print("(Loaded) Update All from Github script for GrowSoft")
 
 local CONFIG_PATH = "config/github_updater.json"
+local DAEMON_URL  = "http://localhost:8765/update"
 
 local ROLE_DEVELOPER = 51
 
 registerLuaCommand({
     command = "ul",
     roleRequired = ROLE_DEVELOPER,
-    description = "This command fetches and updates all scripts from the configured Github repository."
+    description = "Triggers the Updater Daemon to git pull all latest scripts from Github."
 })
 
 registerLuaCommand({
     command = "updatelua",
     roleRequired = ROLE_DEVELOPER,
-    description = "This command fetches and updates all scripts from the configured Github repository."
+    description = "Alias for /ul. Triggers the Updater Daemon to git pull all latest scripts from Github."
 })
 
 local function readConfig()
@@ -28,7 +31,6 @@ local function readConfig()
 end
 
 local function writeConfig(data)
-    -- ensure config dir exists
     dir.create("config")
     local content = json.encode(data)
     if content then
@@ -40,7 +42,7 @@ end
 
 local function showConfigUI(player)
     local config = readConfig() or {}
-    local defaultRepo = config.repo or "Owner/RepoName"
+    local defaultRepo   = config.repo   or "Owner/RepoName"
     local defaultBranch = config.branch or "main"
 
     local d = {}
@@ -48,15 +50,15 @@ local function showConfigUI(player)
     table.insert(d, "add_label_with_icon|big|`6Github Auto-Updater``|left|5814|")
     table.insert(d, "add_smalltext|`oSetup the Github repository to pull files from.``|left|")
     table.insert(d, "add_spacer|small|")
-    
-    table.insert(d, "add_textbox|`oGithub Repo (e.g. GrowSoft/GrowtopiaServer):``|left|")
+
+    table.insert(d, "add_textbox|`oGithub Repo (e.g. rionmaulanaa2/updater):``|left|")
     table.insert(d, "add_text_input|repo||" .. defaultRepo .. "|64|")
     table.insert(d, "add_spacer|small|")
 
     table.insert(d, "add_textbox|`oBranch Name (e.g. main or master):``|left|")
     table.insert(d, "add_text_input|branch||" .. defaultBranch .. "|32|")
     table.insert(d, "add_spacer|small|")
-    
+
     table.insert(d, "add_button|save_gh_config|`2Save Config``|no_flags|0|0|")
     table.insert(d, "add_button|gh_close|`oCancel``|no_flags|0|0|")
 
@@ -67,74 +69,17 @@ local function showConfigUI(player)
     )
 end
 
-local function handleFileDownload(repo, branch, item, player)
-    local rawUrl = "https://raw.githubusercontent.com/" .. repo .. "/" .. branch .. "/" .. item.path
-    -- We pass a callback as the second argument
-    http.get(rawUrl, function(dlRes)
-        if dlRes then
-            local dlBody = type(dlRes) == "table" and dlRes.body or dlRes
-            if dlBody and type(dlBody) == "string" and #dlBody > 0 then
-                local dirPath = item.path:match("(.+)/[^/]+$")
-                if dirPath then
-                    dir.create(dirPath)
-                end
-                file.write(item.path, dlBody)
-            end
-        end
-    end)
-end
-
-local function executeUpdateAll(player, config)
-    player:onConsoleMessage("`oAttempting to fetch latest files from GitHub API...``")
-    local repo = config.repo
-    local branch = config.branch
-
-    local apiUrl = "https://api.github.com/repos/" .. repo .. "/git/trees/" .. branch .. "?recursive=1"
-    
-    -- Attempting to use a callback approach in case http.get supports it to bypass yielding
-    http.get(apiUrl, function(res)
-        if not res then
-            player:onConsoleMessage("`4Failed to reach Github API. Check repo name and internet connection.``")
-            return
-        end
-
-        local body = type(res) == "table" and res.body or res
-        if type(body) == "string" and not body:match("^%s*{") then
-            player:onConsoleMessage("`4Error: API did not return JSON. It might be blocking the request.``")
-            return
-        end
-
-        local data = json.decode(body)
-        if data and type(data) == "table" and data.tree then
-            local count = 0
-            for _, item in ipairs(data.tree) do
-                if item.type == "blob" then
-                    if item.path:match("%.lua$") or item.path:match("%.json$") or item.path:match("%.txt$") or item.path:match("%.md$") then
-                        handleFileDownload(repo, branch, item, player)
-                        count = count + 1
-                    end
-                end
-            end
-            player:onConsoleMessage("`2Successfully queued `w" .. count .. "`2 files for download!``")
-            player:onConsoleMessage("`oDownloads happen in the background. Please wait 3-5 seconds and then run /reload.``")
-        else
-            player:onConsoleMessage("`4Failed to parse Github API response.``")
-        end
-    end)
-end
-
 onPlayerCommandCallback(function(world, player, fullCommand)
     local cmd, args = fullCommand:match("^(%S+)%s*(.*)")
     if not cmd then cmd = fullCommand end
     cmd = cmd:lower()
-    -- Strip leading slash if present
     if cmd:sub(1, 1) == "/" then cmd = cmd:sub(2) end
-    
+
     if cmd == "ul" or cmd == "updatelua" then
         if not player:hasRole(ROLE_DEVELOPER) then
             return false
         end
-        
+
         args = args or ""
 
         if args:lower() == "config" then
@@ -149,40 +94,46 @@ onPlayerCommandCallback(function(world, player, fullCommand)
             return true
         end
 
-        executeUpdateAll(player, config)
+        -- http.post is fire-and-forget (does NOT yield = no crash).
+        -- It sends a signal to the local updater-daemon.ps1 running on this PC.
+        -- The daemon then runs 'git pull' outside the Lua engine.
+        player:onConsoleMessage("`6>> `oSending update signal to Updater Daemon...``")
+
+        http.post(DAEMON_URL, "repo=" .. config.repo .. "&branch=" .. config.branch)
+
+        player:onConsoleMessage("`2Signal sent! The Daemon is now running git pull.``")
+        player:onConsoleMessage("`oWait 3-5 seconds for git pull to finish, then type `w/reload`` `oto apply the new files!``")
 
         return true
     end
-    
+
     return false
 end)
 
 onPlayerDialogCallback(function(world, player, data)
-    local dlg = data["dialog_name"] or ""
+    local dlg     = data["dialog_name"] or ""
     local clicked = data["buttonClicked"] or ""
 
     if dlg == "github_updater_config" then
         if clicked == "gh_close" then
             return true
         end
-        
+
         if clicked == "save_gh_config" then
-            local repo = data["repo"] or ""
+            local repo   = data["repo"]   or ""
             local branch = data["branch"] or ""
-            
+
             if repo == "" or branch == "" then
                 player:onConsoleMessage("`4Repo and Branch cannot be empty!``")
                 return true
             end
-            
-            local configData = {
-                repo = repo,
-                branch = branch
-            }
-            
+
+            local configData = { repo = repo, branch = branch }
+
             if writeConfig(configData) then
                 player:onConsoleMessage("`2Github Auto-Updater config saved!``")
-                player:onConsoleMessage("`oYou can now type `/ul` to fetch all files.``")
+                player:onConsoleMessage("`oMake sure `wupdater-daemon.ps1`` `ois running on your PC!``")
+                player:onConsoleMessage("`oType `/ul` to trigger an update.``")
             else
                 player:onConsoleMessage("`4Failed to save config. Check console logs.``")
             end
