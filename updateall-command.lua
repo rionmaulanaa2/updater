@@ -18,20 +18,20 @@ registerLuaCommand({
 })
 
 local function readConfig()
-    local success, content = pcall(file.read, CONFIG_PATH)
-    if success and content and content ~= "" then
-        local suc, dec = pcall(json.decode, content)
-        if suc then return dec end
+    local content = file.read(CONFIG_PATH)
+    if content and content ~= "" then
+        local dec = json.decode(content)
+        if type(dec) == "table" then return dec end
     end
     return nil
 end
 
 local function writeConfig(data)
     -- ensure config dir exists
-    pcall(dir.create, "config")
-    local success, content = pcall(json.encode, data)
-    if success then
-        pcall(file.write, CONFIG_PATH, content)
+    dir.create("config")
+    local content = json.encode(data)
+    if content then
+        file.write(CONFIG_PATH, content)
         return true
     end
     return false
@@ -73,8 +73,8 @@ local function executeUpdateAll(player, config)
 
     local apiUrl = "https://api.github.com/repos/" .. repo .. "/git/trees/" .. branch .. "?recursive=1"
     
-    local success, res = pcall(http.get, apiUrl)
-    if not success or not res then
+    local res = http.get(apiUrl)
+    if not res then
         player:onConsoleMessage("`4Failed to reach Github API. Check repo name and internet connection.``")
         return
     end
@@ -85,8 +85,8 @@ local function executeUpdateAll(player, config)
         return
     end
 
-    local successJson, data = pcall(json.decode, body)
-    if not successJson or not data or not data.tree then
+    local data = json.decode(body)
+    if not data or type(data) ~= "table" or not data.tree then
         player:onConsoleMessage("`4Failed to parse Github API response. Make sure the Repo and Branch are correct.``")
         if data and data.message then
             player:onConsoleMessage("`4API Message: `o" .. data.message .. "``")
@@ -103,21 +103,19 @@ local function executeUpdateAll(player, config)
             if item.path:match("%.lua$") or item.path:match("%.json$") or item.path:match("%.txt$") or item.path:match("%.md$") then
                 
                 local rawUrl = "https://raw.githubusercontent.com/" .. repo .. "/" .. branch .. "/" .. item.path
-                local dlSuccess, dlRes = pcall(http.get, rawUrl)
+                local dlRes = http.get(rawUrl)
                 
-                if dlSuccess and dlRes then
+                if dlRes then
                     local dlBody = type(dlRes) == "table" and dlRes.body or dlRes
                     if dlBody and type(dlBody) == "string" and #dlBody > 0 then
                         -- Check if there's a directory path that needs to be created
                         local dirPath = item.path:match("(.+)/[^/]+$")
                         if dirPath then
-                            pcall(dir.create, dirPath)
+                            dir.create(dirPath)
                         end
                         
-                        local writeSuccess = pcall(file.write, item.path, dlBody)
-                        if writeSuccess then
-                            count = count + 1
-                        end
+                        file.write(item.path, dlBody)
+                        count = count + 1
                     end
                 end
             end
@@ -126,7 +124,7 @@ local function executeUpdateAll(player, config)
 
     player:onConsoleMessage("`2Successfully updated `w" .. count .. "`2 files from Github!``")
     player:onConsoleMessage("`oReloading scripts to apply changes...``")
-    pcall(reloadScripts)
+    reloadScripts()
 end
 
 onPlayerCommandCallback(function(world, player, fullCommand)
