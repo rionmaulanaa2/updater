@@ -18,6 +18,7 @@ registerLuaCommand({
 })
 
 local function readConfig()
+    if not file.exists(CONFIG_PATH) then return nil end
     local content = file.read(CONFIG_PATH)
     if content and content ~= "" then
         local dec = json.decode(content)
