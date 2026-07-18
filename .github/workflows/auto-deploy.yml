@@ -1,0 +1,55 @@
+name: Auto Deploy to GTPS Server
+
+# Runs automatically every time you git push to main.
+# Also can be triggered manually from the GitHub Actions tab.
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy all Lua files to GTPS Server
+        env:
+          GTPS_URL: ${{ secrets.GTPS_SERVER_URL }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_SECRET }}
+        run: |
+          echo "Starting deployment to GTPS server: $GTPS_URL"
+          DEPLOYED=0
+          FAILED=0
+
+          while IFS= read -r -d '' file; do
+            rel_path="${file:2}"
+
+            # URL-encode the file path
+            encoded_path=$(python3 -c \
+              "import urllib.parse, sys; print(urllib.parse.quote(sys.argv[1]))" \
+              "$rel_path")
+
+            http_code=$(curl -s -o /tmp/resp.txt -w "%{http_code}" \
+              -X POST \
+              "${GTPS_URL}/deploy-lua?token=${DEPLOY_TOKEN}&file=${encoded_path}" \
+              --data-binary "@${file}" \
+              --header "Content-Type: text/plain; charset=utf-8" \
+              --max-time 30 \
+              --retry 2)
+
+            if [ "$http_code" = "200" ]; then
+              echo "  OK  $rel_path"
+              DEPLOYED=$((DEPLOYED + 1))
+            else
+              echo "  FAIL ($http_code) $rel_path -- $(cat /tmp/resp.txt)"
+              FAILED=$((FAILED + 1))
+            fi
+
+          done < <(find . -name "*.lua" -not -path "./.git/*" -print0)
+
+          echo ""
+          echo "Done: $DEPLOYED deployed, $FAILED failed."
+          [ $FAILED -eq 0 ] || exit 1
