@@ -1,83 +1,88 @@
 # ============================================================
-# GT Rion Updater Daemon
-# Run this once on your PC, keep it in the background.
-# The in-game /ul command will send a signal to this script
-# which then runs git pull and updates your server scripts.
+# GT Rion Updater Daemon v2.0 - File Watcher Mode
+# 
+# INSTRUCTIONS:
+#   1. Run this script ONCE on your PC and keep it open.
+#   2. It watches for a trigger file written by the Lua /ul command.
+#   3. When triggered, it runs 'git pull' to update all scripts.
+#   4. Type /ulstatus in-game to check the result.
+#
+# To start: Right-click this file -> "Run with PowerShell"
+#   OR run: powershell -ExecutionPolicy Bypass -File updater-daemon.ps1
 # ============================================================
 
-$ProjectPath = $PSScriptRoot
-$Port = 8765
-$Listener = $null
+$ProjectPath   = $PSScriptRoot
+$TriggerFile   = Join-Path $ProjectPath "_update_trigger.txt"
+$StatusFile    = Join-Path $ProjectPath "_update_status.txt"
+$HeartbeatFile = Join-Path $ProjectPath "_daemon_alive.txt"
+$PollIntervalMs = 1000   # Check every 1 second
 
 Write-Host "====================================" -ForegroundColor Cyan
-Write-Host "  GT Rion Updater Daemon v1.0" -ForegroundColor Cyan
+Write-Host "  GT Rion Updater Daemon v2.0" -ForegroundColor Cyan
+Write-Host "  File Watcher Mode" -ForegroundColor Cyan
 Write-Host "====================================" -ForegroundColor Cyan
 Write-Host "Project Path : $ProjectPath" -ForegroundColor White
-Write-Host "Listening on : http://localhost:$Port/update" -ForegroundColor White
+Write-Host "Watching     : _update_trigger.txt" -ForegroundColor White
 Write-Host ""
-Write-Host "Keep this window open. When a developer types" -ForegroundColor Yellow
-Write-Host "/ul in-game, this script will automatically" -ForegroundColor Yellow
-Write-Host "run 'git pull' and update all Lua files!" -ForegroundColor Yellow
+Write-Host "Keep this window open." -ForegroundColor Yellow
+Write-Host "Type /ul in-game to trigger an update." -ForegroundColor Yellow
+Write-Host "Type /ulstatus in-game to check progress." -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Press Ctrl+C to stop." -ForegroundColor Gray
 Write-Host "====================================" -ForegroundColor Cyan
+Write-Host ""
+
+# Write heartbeat so Lua can detect the daemon is running
+Set-Content -Path $HeartbeatFile -Value "running" -Encoding UTF8
+Write-Host "[OK] Daemon is running. Heartbeat file created." -ForegroundColor Green
+Write-Host ""
+
+# Clean up on exit
+$null = Register-EngineEvent PowerShell.Exiting -Action {
+    if (Test-Path $HeartbeatFile) { Remove-Item $HeartbeatFile -Force }
+    Write-Host "Daemon stopped. Heartbeat removed." -ForegroundColor Gray
+}
 
 try {
-    $Listener = New-Object System.Net.HttpListener
-    $Listener.Prefixes.Add("http://localhost:$Port/")
-    $Listener.Start()
+    while ($true) {
+        Start-Sleep -Milliseconds $PollIntervalMs
 
-    Write-Host "[OK] Daemon is running and waiting..." -ForegroundColor Green
-    Write-Host ""
+        # Refresh heartbeat timestamp every 10 seconds so Lua knows we're alive
+        if ((Get-Date).Second % 10 -eq 0) {
+            Set-Content -Path $HeartbeatFile -Value (Get-Date -Format "yyyy-MM-dd HH:mm:ss") -Encoding UTF8
+        }
 
-    while ($Listener.IsListening) {
-        $Context = $Listener.GetContext()
-        $Request = $Context.Request
-        $Response = $Context.Response
+        # Check if the trigger file was written by the Lua /ul command
+        if (Test-Path $TriggerFile) {
+            Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Trigger detected! Running git pull..." -ForegroundColor Cyan
 
-        $Path = $Request.Url.AbsolutePath
+            # Clear old status
+            if (Test-Path $StatusFile) { Remove-Item $StatusFile -Force }
 
-        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Request received: $Path" -ForegroundColor White
-
-        if ($Path -eq "/update") {
-            Write-Host "[*] Running git pull in: $ProjectPath" -ForegroundColor Cyan
-
-            $Result = & git -C $ProjectPath pull origin main 2>&1
+            # Run git pull
+            $Output = & git -C $ProjectPath pull origin main 2>&1
             $ExitCode = $LASTEXITCODE
 
-            Write-Host $Result -ForegroundColor (if ($ExitCode -eq 0) { "Green" } else { "Red" })
+            # Delete trigger file to signal "done processing"
+            Remove-Item $TriggerFile -Force -ErrorAction SilentlyContinue
 
             if ($ExitCode -eq 0) {
-                Write-Host "[OK] Git pull successful!" -ForegroundColor Green
-                $Body = "OK: git pull successful"
+                $StatusMsg = "OK: git pull successful! " + ($Output | Select-Object -Last 1)
+                Write-Host "[OK] $StatusMsg" -ForegroundColor Green
             } else {
-                Write-Host "[ERR] Git pull failed with exit code $ExitCode" -ForegroundColor Red
-                $Body = "ERR: git pull failed - $Result"
+                $StatusMsg = "ERR: git pull failed (exit $ExitCode) - " + ($Output | Select-Object -Last 1)
+                Write-Host "[ERR] $StatusMsg" -ForegroundColor Red
             }
 
-            $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
-            $Response.StatusCode = 200
-            $Response.ContentLength64 = $Bytes.Length
-            $Response.OutputStream.Write($Bytes, 0, $Bytes.Length)
-            $Response.Close()
+            # Write result for /ulstatus to read
+            Set-Content -Path $StatusFile -Value $StatusMsg -Encoding UTF8
 
             Write-Host ""
-        } else {
-            # Handle preflight / health check
-            $Body = "GT Rion Updater Daemon running. POST to /update to trigger git pull."
-            $Bytes = [System.Text.Encoding]::UTF8.GetBytes($Body)
-            $Response.StatusCode = 200
-            $Response.ContentLength64 = $Bytes.Length
-            $Response.OutputStream.Write($Bytes, 0, $Bytes.Length)
-            $Response.Close()
         }
     }
 } catch {
     Write-Host "[ERROR] $_" -ForegroundColor Red
 } finally {
-    if ($Listener -ne $null -and $Listener.IsListening) {
-        $Listener.Stop()
-        $Listener.Close()
-    }
+    if (Test-Path $HeartbeatFile) { Remove-Item $HeartbeatFile -Force }
     Write-Host "Daemon stopped." -ForegroundColor Gray
 }

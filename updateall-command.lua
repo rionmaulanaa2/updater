@@ -1,10 +1,12 @@
 -- Update All Command script
--- Triggers a local updater daemon (updater-daemon.ps1) via http.post.
--- http.post is fire-and-forget and does NOT yield, so it never crashes.
+-- Uses file.write to drop a trigger file on disk.
+-- The updater-daemon.ps1 watches for that file and runs git pull.
+-- No HTTP calls needed = no crashes, no blocks.
 print("(Loaded) Update All from Github script for GrowSoft")
 
-local CONFIG_PATH = "config/github_updater.json"
-local DAEMON_URL  = "http://localhost:8765/update"
+local CONFIG_PATH  = "config/github_updater.json"
+local TRIGGER_FILE = "_update_trigger.txt"   -- daemon watches this file
+local STATUS_FILE  = "_update_status.txt"    -- daemon writes result here
 
 local ROLE_DEVELOPER = 51
 
@@ -94,16 +96,47 @@ onPlayerCommandCallback(function(world, player, fullCommand)
             return true
         end
 
-        -- http.post is fire-and-forget (does NOT yield = no crash).
-        -- It sends a signal to the local updater-daemon.ps1 running on this PC.
-        -- The daemon then runs 'git pull' outside the Lua engine.
-        player:onConsoleMessage("`6>> `oSending update signal to Updater Daemon...``")
+        -- Check if the daemon is even running by looking for a heartbeat file
+        if not file.exists("_daemon_alive.txt") then
+            player:onConsoleMessage("`4Updater Daemon is NOT running!``")
+            player:onConsoleMessage("`oPlease start `wupdater-daemon.ps1`` `oon your PC first!``")
+            player:onConsoleMessage("`oRun: `wpowershell -ExecutionPolicy Bypass -File updater-daemon.ps1``")
+            return true
+        end
 
-        http.post(DAEMON_URL, "repo=" .. config.repo .. "&branch=" .. config.branch, "application/x-www-form-urlencoded")
+        -- Write the trigger file — daemon detects this and runs git pull
+        -- file.write is synchronous, works in any callback, no HTTP needed!
+        file.write(TRIGGER_FILE, os.time())
+        
+        player:onConsoleMessage("`6>> `oUpdate trigger sent to Updater Daemon!``")
+        player:onConsoleMessage("`oThe daemon is now running `wgit pull`` `oin the background.``")
+        player:onConsoleMessage("`oWait `w5 seconds`` `othen type `w/ulstatus`` `oto check progress.``")
 
-        player:onConsoleMessage("`2Signal sent! The Daemon is now running git pull.``")
-        player:onConsoleMessage("`oWait 3-5 seconds for git pull to finish, then type `w/reload`` `oto apply the new files!``")
+        return true
+    end
 
+    if cmd == "ulstatus" then
+        if not player:hasRole(ROLE_DEVELOPER) then
+            return false
+        end
+
+        if file.exists(TRIGGER_FILE) then
+            player:onConsoleMessage("`eDaemon is still working... please wait a few more seconds.``")
+        elseif file.exists(STATUS_FILE) then
+            local status = file.read(STATUS_FILE)
+            if status and status ~= "" then
+                if status:match("^OK") then
+                    player:onConsoleMessage("`2Update complete! `o" .. status .. "``")
+                    player:onConsoleMessage("`oType `w/reload`` `oto apply the new scripts!``")
+                else
+                    player:onConsoleMessage("`4Update failed: `o" .. status .. "``")
+                end
+            else
+                player:onConsoleMessage("`oNo status available yet. Is the daemon running?``")
+            end
+        else
+            player:onConsoleMessage("`oNo update has been triggered yet. Type `/ul` to update.``")
+        end
         return true
     end
 
